@@ -1,0 +1,7 @@
+[project]
+name = "EffieDes"
+version = "0.1.0"
+description = "Hybrid AI protein design"
+readme = "README.md"
+requires-python = ">=3.9,<3.10"
+dependencies = ["torch", "torchvision", "pytoulbar2","einops","tqdm","pandas"]
