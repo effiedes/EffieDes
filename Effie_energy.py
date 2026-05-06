@@ -11,6 +11,8 @@ from effie.PDB_parser import PDB_parser
 from effie.utils_design import seq_to_pred, calc_E
 from effie.Load_model import Load_model
 
+from effie.app_utils import load_effie_model, parse_fasta, get_full_W
+
 def parse_args():
     """Parse command line arguments."""
     parser = ArgumentParser(description="Calculate energy breakdown for a PDB and FASTA sequences.")
@@ -27,48 +29,6 @@ def parse_args():
     parser.add_argument("-n", "--noise", type=float, default=0.0,
                       help="Level of noise (default is 0. Also 0.02 or 0.2)")
     return parser.parse_args()
-
-def load_effie_model(args, device):
-    """Initialize and load the Effie model."""
-    version = args.version
-    noise = args.noise
-    model_name = "PLL_opti_multi" if version == 2 else "PLL_optiR_multi"
-    
-    if noise != 0:
-        # Replicates original logic: "noise" + "".join(str(noise).split("."))
-        noise_suffix = "".join(str(noise).split("."))
-        model_name += f"_noise{noise_suffix}"
-    
-    # Configuration based on original script
-    unary = False
-    multichain = True
-    
-    model_loader = Load_model(version=f"v{version}", multi=multichain, tm=False, unary=unary)
-    model = model_loader(model_name, model_path=args.model_path, device=device)
-    
-    print(f"Model loaded, {count_parameters(model)} parameters")
-    return model, model_name
-
-def parse_fasta(fasta_path: Path) -> Iterator[Tuple[str, str]]:
-    """Robustly parse a FASTA file, handling multiline sequences."""
-    header = None
-    sequence_parts = []
-    
-    with open(fasta_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith(">"):
-                if header:
-                    yield header, "".join(sequence_parts)
-                header = line
-                sequence_parts = []
-            else:
-                sequence_parts.append(line.replace("-", ""))
-        
-        if header:
-            yield header, "".join(sequence_parts)
 
 def calculate_energy_breakdown(W, pred, chain_idx, num_chains):
     """Calculate total, intra-chain, and inter-chain energies."""
@@ -119,9 +79,7 @@ def main():
         nb_var_tot = crd.shape[0]
         
         # Get weight matrix from model
-        W, idx_pairs = model(crd, thresh=thresh, chain_idx=chain_idx)
-        W = full_W(W, idx_pairs)
-        W = W.reshape(nb_var_tot, nb_var_tot, -1)
+        W = get_full_W(model, crd, chain_idx, thresh=thresh, device=device)
         
         output_file_path = base_path / f"{fasta_file.stem}.txt"
         
